@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>Elderly Care App</title>
+  <title>Care Giver App</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/png" href="favicon.ico" />
   <link rel="stylesheet" type="text/css" href="style.css" />
@@ -17,10 +17,10 @@
 
 <body>
   <div class="topnav">
-    <h1>Smart Elderly Care Application</h1>
+    <h1>Smart Elderly Care Application (Care Giver Analytics)</h1>
   </div>
   <div class="content">
-    <div class="card-grid">
+    <!-- <div class="card-grid">
       <div class="card">
         <p>
           <button id="connectBleButton" class="connectButton">
@@ -35,7 +35,20 @@
           <strong><span id="bleState" style="color: #d13a30">Disconnected</span></strong>
         </p>
       </div>
+    </div> -->
+
+    <div class="card-grid card-grid-height">
+      <div class="card">
+        <h2>Google Map</h2>
+        <!-- <p class="reading"><span id="heartRateValueContainer">NaN</span> (Pa)</p>
+                <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
+        <!-- <div id="map"></div> -->
+        <gmp-map id="map" center="0.07011213898658752,34.28704833984375" zoom="14" map-id="DEMO_MAP_ID">
+          <gmp-advanced-marker id="myMarker" title="My Elderl location"></gmp-advanced-marker>
+        </gmp-map>
+      </div>    
     </div>
+
     <div class="card-grid">
       <div class="card" id="heart">
         <h2>Heart Rate</h2>
@@ -52,7 +65,7 @@
         </p>
       </div>
     </div>
-    <!-- <div class="card-grid">
+    <div class="card-grid">
       <div class="card">
         <h2>Pressure</h2>
         <p class="reading">
@@ -68,37 +81,18 @@
         </p>
         <p class="gray-label">Last reading: <span id="timestamp"></span></p>
       </div>
-    </div> -->
-    <div class="card-grid card-grid-height">
-      <div class="card">
-        <h2>Google Map</h2>
-        <!-- <p class="reading"><span id="heartRateValueContainer">NaN</span> (Pa)</p>
-                <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
-        <!-- <div id="map"></div> -->
-        <gmp-map center="0.07011213898658752,34.28704833984375" zoom="14" map-id="DEMO_MAP_ID">
-          <gmp-advanced-marker id="myMarker" title="I am here"></gmp-advanced-marker>
-        </gmp-map>
-      </div>
-
-      <!-- <div class="card">
-        <h2>Temparature</h2>
-        <p class="reading">
-          <span id="temperatureValueContainer">NaN</span> (°C)
-        </p>
-        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
-      </div> -->
     </div>
+    
   </div>
   <div class="footer">
     <p><a href="#">Created by Siaya Institute of Technology</a></p>
-    <p><a href="./CareGiver/index.html">Care Giver</a></p>
   </div>
 
 </body>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+  import { getDatabase, ref, set, get, child, onValue  } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
   // DOM Elements
   const connectButton = document.getElementById("connectBleButton");
@@ -110,14 +104,12 @@
   const bleStateContainer = document.getElementById("bleState");
   const timestampContainer = document.getElementById("timestamp");
   const heartRateCard = document.getElementById("heart");
-  var marker = document.getElementById('myMarker');
-  
 
-  //Define BLE Device Specs
-  var deviceName = "ESP32";
-  var bleService = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-  var ledCharacteristic = "19b10002-e8f2-537e-4f6c-d104768a1214";
-  var sensorCharacteristic = "beefcafe-36e1-4688-b7f5-00000000000b";
+  // //Define BLE Device Specs
+  // var deviceName = "ESP32";
+  // var bleService = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+  // var ledCharacteristic = "19b10002-e8f2-537e-4f6c-d104768a1214";
+  // var sensorCharacteristic = "beefcafe-36e1-4688-b7f5-00000000000b";
 
   //Global Variables to Handle Bluetooth
   var bleServer;
@@ -125,8 +117,6 @@
   var sensorCharacteristicFound;
   var heartRateThreshold = 70;
   var heartRateDecoded;
-  var latitude ;
-  var longitude ;
 
   // Initialize Realtime Database and get a reference to the service
   // const database = firebase.database(app);
@@ -149,19 +139,15 @@
   // // // Initialize Realtime Database and get a reference to the service
   const database = getDatabase(app);
 
-  if (heartRateDecoded > heartRateThreshold) {
-    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
-  }
-
   // Connect Button (search for BLE Devices only if BLE is available)
-  connectButton.addEventListener("click", (event) => {
-    if (isWebBluetoothEnabled()) {
-      connectToDevice();
-    }
-  });
+  // connectButton.addEventListener("click", (event) => {
+  //   if (isWebBluetoothEnabled()) {
+  //     connectToDevice();
+  //   }
+  // });
 
   // Disconnect Button
-  disconnectButton.addEventListener("click", disconnectDevice);
+  // disconnectButton.addEventListener("click", disconnectDevice);
 
   // Write to the ESP32 LED Characteristic
   onButton.addEventListener("click", () => {
@@ -182,19 +168,29 @@
     return true;
   }
 
-  function writeUserData(decodedValue) {
-    const date = getDateTime();
-    console.log("New "+ decodedValue);
-    set(ref(database, 'heartRate/' + date), {
-      heartBeat: decodedValue,
-      temperature: decodedValue
-    });
-    // database.ref('heartRate/' + deviceName).set({
+  readUserData();
+
+  function readUserData() {
+    // const date = getDateTime();
+    // console.log("New "+ decodedValue);
+    const heartRateReadings = ref(database, 'heartRate/');
+    onValue(heartRateReadings, (snapshot)=>{
+      const data = snapshot.val();
+      console.log(data);
+    })
+    // set(ref(database, 'heartRate/' + date), {
     //   heartBeat: decodedValue,
     //   temperature: decodedValue
-    // })
-    console.log('saved succefully');
+    // });
+    console.log('Reaad succefully');
   }
+
+  var marker = document.getElementById('myMarker');
+  var latitude ;
+    var longitude ;
+
+    // Set the position attribute with the dynamic coordinates
+    
 
   if (isWebLocationEnabled) {
     navigator.geolocation.getCurrentPosition((position) => {
@@ -204,8 +200,7 @@
     console.log(position.coords.latitude, position.coords.longitude);
 });
   }
-
-  // Check if BLE is available in your Browser
+  // Check if geolocation is available in your Browser
   function isWebLocationEnabled() {
     if (!navigator.geolocation) {
       console.log("Web Geolocation API is not available in this browser!");
@@ -218,7 +213,6 @@
   }
   // navigator.geolocation.getCurrentPosition()
 
-  
   // Connect to BLE Device and Enable Notifications
   function connectToDevice() {
     console.log("Initializing Bluetooth...");
@@ -280,12 +274,6 @@
     console.log("Characteristic value changed: ", newValueReceived);
     // heartRateDecoded = newValueReceived;
     writeUserData(newValueReceived);
-    if (newValueReceived > heartRateThreshold) {
-    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
-  }
-  if (newValueReceived < heartRateThreshold) {
-    heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
-  }
     retrievedValue.innerHTML = newValueReceived;
     timestampContainer.innerHTML = getDateTime();
   }
@@ -365,7 +353,6 @@
       minutes +
       ":" +
       seconds;
-      console.log(datetime)
     return datetime;
   }
 

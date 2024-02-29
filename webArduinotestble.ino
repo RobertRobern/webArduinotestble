@@ -1,14 +1,3 @@
-/*
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/esp32-web-bluetooth/
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files.
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-*/
-
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -34,13 +23,16 @@ const byte RATE_SIZE = 4; //Increase this for more averaging. 4 is good.
 byte rates[RATE_SIZE]; //Array of heart rates
 byte rateSpot = 0;
 long lastBeat = 0; //Time at which the last beat occurred
+String Gmaps_link;
 
 float beatsPerMinute;
 int beatAvg;
+int beatThreshhold = 70;
 
 const int ledPin = 2; // Use the appropriate GPIO pin for your setup
 
-#include "WiFi.h"
+
+
 
 String SOS_NUM = "+254702139261"; // Add a number on which you want to receive call or SMS
 
@@ -74,7 +66,7 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pLedCharacteristic) {
       std::string value = pLedCharacteristic->getValue();
       if (value.length() > 0) {
-        Serial.print("Characteristic event, written: ");
+        Serial.print(F("Characteristic event, written: "));
         Serial.println(static_cast<int>(value[0])); // Print the integer value
 
         int receivedValue = static_cast<int>(value[0]);
@@ -89,12 +81,8 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("Initializing...");
+  Serial.println(F("Initializing..."));
   Serial1.begin(115200, SERIAL_8N1, 16, 17); // For A9G Board
-
-  // Making Radio OFF for power saving
-  WiFi.mode(WIFI_OFF);  // WiFi OFF
-
   // Waiting for A9G to setup everything for 20 sec
   delay(20000);
 
@@ -131,10 +119,10 @@ void setup() {
   // Initialize sensor
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //Use default I2C port, 400kHz speed
   {
-    Serial.println("MAX30105 was not found. Please check wiring/power. ");
+    Serial.println(F("MAX30105 was not found. Please check wiring/power. "));
     while (1);
   }
-  Serial.println("Place your index finger on the sensor with steady pressure.");
+  Serial.println(F("Place your index finger on the sensor with steady pressure."));
 
   particleSensor.setup(); //Configure sensor with default settings
   particleSensor.setPulseAmplitudeRed(0x0A); //Turn Red LED to low to indicate sensor is running
@@ -184,7 +172,7 @@ void setup() {
   pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
-  Serial.println("Waiting a client connection to notify...");
+  Serial.println(F("Waiting a client connection to notify..."));
 
 }
 
@@ -211,16 +199,24 @@ void loop() {
           else if (fromGSM == "RING\r")
           {
             //          digitalWrite(SLEEP_PIN, LOW); // Sleep Mode OFF
-            Serial.println("---------ITS RINGING-------");
+            Get_gmap_link(1);
+            Serial.println(F("---------ITS RINGING-------"));
             Serial1.println("ATA");
           }
 
           else if (fromGSM == "NO CARRIER\r")
           {
-            Serial.println("---------CALL ENDS-------");
+            Serial.println(F("---------CALL ENDS-------"));
             CALL_END = 1;
             //          digitalWrite(SLEEP_PIN, HIGH);// Sleep Mode ON
           }
+          else if (beatThreshhold == beatAvg)
+          {
+            Get_gmap_link(1);  // Send Location with Call
+            //            Serial.println("---------CALL ENDS-------");
+            //            CALL_END = 1;
+          }
+
 
           //write the actual response
           Serial.println(fromGSM);
@@ -266,38 +262,38 @@ void loop() {
       }
     }
 
-    Serial.print("IR=");
+    Serial.print(F("IR="));
     Serial.print(irValue);
-    Serial.print(", BPM=");
+    Serial.print(F(", BPM="));
     Serial.print(beatsPerMinute);
-    Serial.print(", Avg BPM=");
+    Serial.print(F(", Avg BPM="));
     Serial.print(beatAvg);
     pSensorCharacteristic->setValue(String(beatAvg).c_str());
     pSensorCharacteristic->notify();
     //        value++;
-    Serial.print("New value notified: ");
+    Serial.print(F("New value notified: "));
     Serial.println(beatAvg);
     //    delay(3000); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
 
 
     if (irValue < 50000)
-      Serial.print(" No finger?");
+      Serial.print(F(" No finger?"));
 
     Serial.println();
   }
   // disconnecting
   if (!deviceConnected && oldDeviceConnected) {
-    Serial.println("Device disconnected.");
+    Serial.println(F("Device disconnected."));
     delay(500); // give the bluetooth stack the chance to get things ready
     pServer->startAdvertising(); // restart advertising
-    Serial.println("Start advertising");
+    Serial.println(F("Start advertising"));
     oldDeviceConnected = deviceConnected;
   }
   // connecting
   if (deviceConnected && !oldDeviceConnected) {
     // do stuff here on connecting
     oldDeviceConnected = deviceConnected;
-    Serial.println("Device Connected");
+    Serial.println(F("Device Connected"));
   }
 }
 
@@ -306,7 +302,7 @@ void Get_gmap_link(bool makeCall)
 {
 
 
-//  digitalWrite(SLEEP_PIN, LOW);
+  //  digitalWrite(SLEEP_PIN, LOW);
   delay(1000);
   Serial1.println("AT+LOCATION = 2");
   Serial.println("AT+LOCATION = 2");
@@ -322,19 +318,19 @@ void Get_gmap_link(bool makeCall)
   res = res.substring(17, 38);
   response = &res[0];
 
-  Serial.print("Recevied Data - "); Serial.println(response); // printin the String in lower character form
+  Serial.print(F("Recevied Data - ")); Serial.println(response); // printin the String in lower character form
   Serial.println("\n");
 
   if (strstr(response, "GPS NOT"))
   {
-    Serial.println("No Location data");
+    Serial.println(F("No Location data"));
     //------------------------------------- Sending SMS without any location
     Serial1.println("AT+CMGF=1");
     delay(1000);
     Serial1.println("AT+CMGS=\"" + SOS_NUM + "\"\r");
     delay(1000);
 
-    Serial1.println ("Unable to fetch location. Please try again");
+    Serial1.println (F("Unable to fetch location. Please try again"));
     delay(1000);
     Serial1.println((char)26);
     delay(1000);
@@ -354,6 +350,8 @@ void Get_gmap_link(bool makeCall)
 
     String Gmaps_link = ( "https://www.google.com/maps?q=" + lat + "," + longi); //http://maps.google.com/maps?q=38.9419+-78.3020
     //------------------------------------- Sending SMS with Google Maps Link with our Location
+    Serial.println(Gmaps_link);
+
     Serial1.println("AT+CMGF=1");
     delay(1000);
     Serial1.println("AT+CMGS=\"" + SOS_NUM + "\"\r");
@@ -371,11 +369,8 @@ void Get_gmap_link(bool makeCall)
   res = "";
   if (makeCall)
   {
-    Serial.println("Calling Now");
+    Serial.println(F("Calling Now"));
     Serial1.println("ATD" + SOS_NUM);
     CALL_END = 0;
   }
 }
-
-
-
