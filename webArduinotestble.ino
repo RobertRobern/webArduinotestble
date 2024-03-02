@@ -12,6 +12,8 @@ MAX30105 particleSensor;
 BLEServer* pServer = NULL;
 BLECharacteristic* pSensorCharacteristic = NULL;
 BLECharacteristic* pLedCharacteristic = NULL;
+BLECharacteristic* pTemperatureCharacteristic = NULL;
+BLECharacteristic* pGeolocationCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t value = 0;
@@ -27,12 +29,10 @@ String Gmaps_link;
 
 float beatsPerMinute;
 int beatAvg;
-int beatThreshhold = 70;
+int beatThreshholdH = 80;
+int beatThreshholdL = 50;
 
 const int ledPin = 2; // Use the appropriate GPIO pin for your setup
-
-
-
 
 String SOS_NUM = "+254702139261"; // Add a number on which you want to receive call or SMS
 
@@ -48,9 +48,12 @@ int c = 0;
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
-#define SERVICE_UUID       "4fafc201-1fb5-459e-8fcc-c5c9c331914b" //"19b10000-e8f2-537e-4f6c-d104768a1214"
-#define SENSOR_CHARACTERISTIC_UUID "beefcafe-36e1-4688-b7f5-00000000000b" //"19b10001-e8f2-537e-4f6c-d104768a1214"
+#define SERVICE_UUID       "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define SENSOR_CHARACTERISTIC_UUID "beefcafe-36e1-4688-b7f5-00000000000b"
 #define LED_CHARACTERISTIC_UUID "19b10002-e8f2-537e-4f6c-d104768a1214"
+#define TEMPERATURE_CHARACTERISTIC_UUID "be36bac9-0f01-4493-ad99-beb73bfe5d83"
+#define GEOLOCATION_CHARACTERISTIC_UUID "f706426e-fa59-4ded-8a76-24fe6b4dd3e3"
+
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -92,6 +95,7 @@ void setup() {
   delay(1000);
 
   Serial1.println("AT+GPS = 1");      // Turning ON GPS
+  Serial.println("AT+GPS = 1");
   delay(1000);
 
   Serial1.println("AT+GPSLP = 2");      // GPS low power
@@ -100,7 +104,7 @@ void setup() {
   Serial1.println("AT+SLEEP = 1");    // Configuring Sleep Mode to 1
   delay(1000);
 
-  Serial1.println("AT+CMGF = 1");
+  Serial1.println("AT+CMGF = 1");     //Configuring SMS Set format, 1 for txt, 0 for pud
   delay(1000);
 
   Serial1.println("AT+CSMP  = 17,167,0,0 ");
@@ -127,6 +131,7 @@ void setup() {
   particleSensor.setup(); //Configure sensor with default settings
   particleSensor.setPulseAmplitudeRed(0x0A); //Turn Red LED to low to indicate sensor is running
   particleSensor.setPulseAmplitudeGreen(0); //Turn off Green LED
+  particleSensor.enableDIETEMPRDY(); //Enable the temp ready
 
   pinMode(ledPin, OUTPUT);
 
@@ -154,7 +159,20 @@ void setup() {
                          LED_CHARACTERISTIC_UUID,
                          BLECharacteristic::PROPERTY_WRITE
                        );
-
+  pTemperatureCharacteristic = pService->createCharacteristic(
+                                 TEMPERATURE_CHARACTERISTIC_UUID,
+                                 BLECharacteristic::PROPERTY_READ   |
+                                 BLECharacteristic::PROPERTY_WRITE  |
+                                 BLECharacteristic::PROPERTY_NOTIFY |
+                                 BLECharacteristic::PROPERTY_INDICATE
+                               );
+  pGeolocationCharacteristic = pService->createCharacteristic(
+                                 GEOLOCATION_CHARACTERISTIC_UUID,
+                                 BLECharacteristic::PROPERTY_READ   |
+                                 BLECharacteristic::PROPERTY_WRITE  |
+                                 BLECharacteristic::PROPERTY_NOTIFY |
+                                 BLECharacteristic::PROPERTY_INDICATE
+                               );
   // Register the callback for the ON button characteristic
   pLedCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
 
@@ -162,6 +180,8 @@ void setup() {
   // Create a BLE Descriptor
   pSensorCharacteristic->addDescriptor(new BLE2902());
   pLedCharacteristic->addDescriptor(new BLE2902());
+  pTemperatureCharacteristic->addDescriptor(new BLE2902());
+  pGeolocationCharacteristic->addDescriptor(new BLE2902());
 
   // Start the service
   pService->start();
@@ -191,7 +211,7 @@ void loop() {
           //check the state
           if (fromGSM == "SEND LOCATION\r")
           {
-            Get_gmap_link(1);  // Send Location with Call
+            Get_gmap_link(0);  // Send Location with0ut Call
             //          digitalWrite(SLEEP_PIN, HIGH);// Sleep Mode ON
 
           }
@@ -199,7 +219,7 @@ void loop() {
           else if (fromGSM == "RING\r")
           {
             //          digitalWrite(SLEEP_PIN, LOW); // Sleep Mode OFF
-            Get_gmap_link(1);
+            Get_gmap_link(0);
             Serial.println(F("---------ITS RINGING-------"));
             Serial1.println("ATA");
           }
@@ -210,9 +230,9 @@ void loop() {
             CALL_END = 1;
             //          digitalWrite(SLEEP_PIN, HIGH);// Sleep Mode ON
           }
-          else if (beatThreshhold == beatAvg)
+          else if (beatAvg >= beatThreshholdH && beatAvg <= beatThreshholdL )
           {
-            Get_gmap_link(1);  // Send Location with Call
+            Get_gmap_link(0);  // Send Location with Call
             //            Serial.println("---------CALL ENDS-------");
             //            CALL_END = 1;
           }
@@ -270,7 +290,6 @@ void loop() {
     Serial.print(beatAvg);
     pSensorCharacteristic->setValue(String(beatAvg).c_str());
     pSensorCharacteristic->notify();
-    //        value++;
     Serial.print(F("New value notified: "));
     Serial.println(beatAvg);
     //    delay(3000); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
@@ -278,6 +297,13 @@ void loop() {
 
     if (irValue < 50000)
       Serial.print(F(" No finger?"));
+
+    float temperature = particleSensor.readTemperature();
+
+    Serial.print(F("temperatureC="));
+    Serial.print(temperature, 4);
+    pTemperatureCharacteristic->setValue(String(temperature).c_str());
+    pTemperatureCharacteristic->notify();
 
     Serial.println();
   }
@@ -363,6 +389,8 @@ void Get_gmap_link(bool makeCall)
     delay(1000);
 
     Serial1.println("AT+CMGD=1,4"); // delete stored SMS to save memory
+    pGeolocationCharacteristic->setValue(String(Gmaps_link).c_str());
+    pGeolocationCharacteristic->notify();
     delay(5000);
   }
   response = "";

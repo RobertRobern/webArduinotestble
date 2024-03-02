@@ -43,13 +43,13 @@
         <p class="gray-label">Last reading: <span id="timestamp"></span></p>
       </div>
 
-      <div class="card">
-        <h2>Control GPIO 2</h2>
-        <button id="onButton" class="onButton">ON</button>
-        <button id="offButton" class="offButton">OFF</button>
-        <p class="gray-label">
-          Last value sent: <span id="valueSent"></span>
+      
+      <div class="card" id="temperature">
+        <h2>Temparature</h2>
+        <p class="reading">
+          <span id="temperatureValueContainer">NaN</span> (°C)
         </p>
+        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
       </div>
     </div>
     <!-- <div class="card-grid">
@@ -62,11 +62,12 @@
       </div>
 
       <div class="card">
-        <h2>Temparature</h2>
-        <p class="reading">
-          <span id="temperatureValueContainer">NaN</span> (°C)
+        <h2>Control GPIO 2</h2>
+        <button id="onButton" class="onButton">ON</button>
+        <button id="offButton" class="offButton">OFF</button>
+        <p class="gray-label">
+          Last value sent: <span id="valueSent"></span>
         </p>
-        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
       </div>
     </div> -->
     <div class="card-grid card-grid-height">
@@ -79,19 +80,11 @@
           <gmp-advanced-marker id="myMarker" title="I am here"></gmp-advanced-marker>
         </gmp-map>
       </div>
-
-      <!-- <div class="card">
-        <h2>Temparature</h2>
-        <p class="reading">
-          <span id="temperatureValueContainer">NaN</span> (°C)
-        </p>
-        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
-      </div> -->
     </div>
   </div>
   <div class="footer">
     <p><a href="#">Created by Siaya Institute of Technology</a></p>
-    <p><a href="./CareGiver/index.html">Care Giver</a></p>
+    <p><a href="./CareGiver/index.html" target="_blank">Care Giver</a></p>
   </div>
 
 </body>
@@ -110,7 +103,9 @@
   const bleStateContainer = document.getElementById("bleState");
   const timestampContainer = document.getElementById("timestamp");
   const heartRateCard = document.getElementById("heart");
+  const temperatureCard = document.getElementById("temperature");
   var marker = document.getElementById('myMarker');
+  const temperatureValue = document.getElementById("temperatureValueContainer");
   
 
   //Define BLE Device Specs
@@ -118,19 +113,21 @@
   var bleService = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
   var ledCharacteristic = "19b10002-e8f2-537e-4f6c-d104768a1214";
   var sensorCharacteristic = "beefcafe-36e1-4688-b7f5-00000000000b";
+  var tempertureCharacteristic = "be36bac9-0f01-4493-ad99-beb73bfe5d83";
+  var geolocationCharacteristic = "f706426e-fa59-4ded-8a76-24fe6b4dd3e3";
 
   //Global Variables to Handle Bluetooth
   var bleServer;
   var bleServiceFound;
-  var sensorCharacteristicFound;
-  var heartRateThreshold = 70;
+  var sensorCharacteristicFound;  
+  var temperatureCharacteristicFound;
+  var geolocationCharacteristicFound;
+  var heartRateThresholdH = 80;
+  var heartRateThresholdL = 50;
+  var temperatureThreshold = 41 //normal 36.8 celcius
   var heartRateDecoded;
-  var latitude ;
-  var longitude ;
+  let heartRate, temperature, geolocation;
 
-  // Initialize Realtime Database and get a reference to the service
-  // const database = firebase.database(app);
-  // const heartBeat = document.getElementById("valueContainer").value;
   const firebaseConfig = {
     apiKey: "AIzaSyDkgzfbSwxVNdG7SjTEhHiE7bDNneHbyns",
     authDomain: "instragramclone-d7409.firebaseapp.com",
@@ -145,13 +142,8 @@
   // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   console.log(app.name);
-  // const analytics = getAnalytics(app);
-  // // // Initialize Realtime Database and get a reference to the service
-  const database = getDatabase(app);
 
-  if (heartRateDecoded > heartRateThreshold) {
-    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
-  }
+  const database = getDatabase(app);
 
   // Connect Button (search for BLE Devices only if BLE is available)
   connectButton.addEventListener("click", (event) => {
@@ -169,7 +161,7 @@
     // writeUserData(heartRateDecoded);
   });
   offButton.addEventListener("click", () => writeOnCharacteristic(0));
-
+ 
   // Check if BLE is available in your Browser
   function isWebBluetoothEnabled() {
     if (!navigator.bluetooth) {
@@ -182,20 +174,13 @@
     return true;
   }
 
-  function writeUserData(decodedValue) {
-    const date = getDateTime();
-    console.log("New "+ decodedValue);
-    set(ref(database, 'heartRate/' + date), {
-      heartBeat: decodedValue,
-      temperature: decodedValue
-    });
-    // database.ref('heartRate/' + deviceName).set({
-    //   heartBeat: decodedValue,
-    //   temperature: decodedValue
-    // })
-    console.log('saved succefully');
+  function waitForOneMinuteBeforeAction(action) {
+    // function takes another function (action) as a parameter 
+    // and schedules it to be executed after a 1-minute delay
+    setTimeout(action, 60000); // 60,000 milliseconds = 1 minute
   }
 
+ 
   if (isWebLocationEnabled) {
     navigator.geolocation.getCurrentPosition((position) => {
       latitude = position.coords.latitude;
@@ -216,9 +201,7 @@
     console.log("Web Geolocation API supported in this browser.");
     return true;
   }
-  // navigator.geolocation.getCurrentPosition()
 
-  
   // Connect to BLE Device and Enable Notifications
   function connectToDevice() {
     console.log("Initializing Bluetooth...");
@@ -242,25 +225,85 @@
       .then((service) => {
         bleServiceFound = service;
         console.log("Service discovered:", service.uuid);
-        return service.getCharacteristic(sensorCharacteristic);
+        // return service.getCharacteristic(sensorCharacteristic);
+        return Promise.all([
+          service.getCharacteristic(sensorCharacteristic),
+          service.getCharacteristic(tempertureCharacteristic),
+          service.getCharacteristic(geolocationCharacteristic)
+        ])
       })
-      .then((characteristic) => {
-        console.log("Characteristic discovered:", characteristic.uuid);
-        sensorCharacteristicFound = characteristic;
-        characteristic.addEventListener(
+      // .then((characteristic) => {
+      //   console.log("Characteristic discovered:", characteristic.uuid);
+      //   sensorCharacteristicFound = characteristic;
+      //   characteristic.addEventListener(
+      //     "characteristicvaluechanged",
+      //     handleCharacteristicChange
+      //   );
+      //   characteristic.startNotifications();
+      //   console.log("Notifications Started.");
+      //   return characteristic.readValue();
+      // })
+      .then(([sensorChar, temperatureChar, geolocationChar]) => {
+        // Assign characteristic variables for future reference
+        console.log("Heart Rate Characteristic discovered:", sensorChar.uuid);
+        console.log("Temperature Characteristic discovered:", temperatureChar.uuid);
+        console.log("Geo Characteristic discovered:", geolocationChar.uuid);
+        sensorCharacteristicFound = sensorChar;
+        temperatureCharacteristicFound = temperatureChar;
+        geolocationCharacteristicFound = geolocationChar;
+        
+        // Add event listeners for each characteristic
+        sensorChar.addEventListener(
           "characteristicvaluechanged",
           handleCharacteristicChange
         );
-        characteristic.startNotifications();
-        console.log("Notifications Started.");
-        return characteristic.readValue();
-      })
-      .then((value) => {
-        console.log("Read value: ", value);
-        const decodedValue = new TextDecoder().decode(value);
+        temperatureChar.addEventListener(
+          "characteristicvaluechanged",
+          handleCharacteristicTempChange
+        );
+        geolocationChar.addEventListener(
+          "characteristicvaluechanged",
+          handleCharacteristicGeoChange
+        );
         
-        console.log("Decoded value: ", decodedValue);
-        retrievedValue.innerHTML = decodedValue;
+        // Start notifications for each characteristic
+        sensorChar.startNotifications();
+        temperatureChar.startNotifications();
+        geolocationChar.startNotifications();
+        
+        console.log("Notifications Started.");
+        
+        // Read values from the characteristics
+        return Promise.all([
+          sensorChar.readValue(),
+          temperatureChar.readValue(),
+          geolocationChar.readValue(),
+        ]);
+      })
+      // .then((value) => {
+      //   console.log("Read value: ", value);
+      //   const decodedValue = new TextDecoder().decode(value);
+        
+      //   console.log("Decoded value: ", decodedValue);
+      //   retrievedValue.innerHTML = decodedValue;
+      // })
+      .then(([sensorValue, temperatureValue, geolocationValue]) => {
+        console.log("Sensor Value: ", sensorValue);
+        console.log("Temperature Value: ", temperatureValue);
+        console.log("Geolocation Value: ", geolocationValue);
+        
+        // Decode and display values
+        const decodedSensorValue = new TextDecoder().decode(sensorValue);
+        const decodedTemperatureValue = new TextDecoder().decode(temperatureValue);
+        const decodedGeolocationValue = new TextDecoder().decode(geolocationValue);
+        
+        console.log("Decoded Sensor Value: ", decodedSensorValue);
+        console.log("Decoded Temperature Value: ", decodedTemperatureValue);
+        console.log("Decoded Geolocation Value: ", decodedGeolocationValue);
+        
+        retrievedValue.innerHTML = decodedSensorValue;
+        temperatureValue.innerHTML = decodedTemperatureValue;
+        // retrievedValue.innerHTML = `Sensor: ${decodedSensorValue}<br>Temperature: ${decodedTemperatureValue}<br>Geolocation: ${decodedGeolocationValue}`;
       })
       .catch((error) => {
         console.log("Error: ", error);
@@ -275,21 +318,98 @@
     connectToDevice();
   }
 
-  function handleCharacteristicChange(event) {
-    const newValueReceived = new TextDecoder().decode(event.target.value);
-    console.log("Characteristic value changed: ", newValueReceived);
-    // heartRateDecoded = newValueReceived;
-    writeUserData(newValueReceived);
-    if (newValueReceived > heartRateThreshold) {
-    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+  function writeTempData(temperature) {
+    const date = getStringDateTime();
+    // console.log("New "+ date +"heartRate" + heartRate +"temperature" + temperature);
+    
+    set(ref(database, 'temperature/' + date), {
+      temperature: temperature,
+      // timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    console.log('temperature saved succefully');
   }
-  if (newValueReceived < heartRateThreshold) {
-    heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
-  }
-    retrievedValue.innerHTML = newValueReceived;
-    timestampContainer.innerHTML = getDateTime();
+  function writeHeartRateData(heartRate) {
+    const date = getStringDateTime();
+    // console.log("New "+ date +"heartRate" + heartRate +"temperature" + temperature);
+    
+    set(ref(database, 'heartRate/' + date), {
+      heartBeat: heartRate,
+      // timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    console.log('heartRate saved succefully');
   }
 
+  function writeGeoData(geolocation) {
+    const date = getStringDateTime();
+    // console.log("New "+ date +"heartRate" + heartRate +"temperature" + temperature);
+    // Extract latitude and longitude
+    let lat = geolocation.substring(0, i);
+    let longi = geolocation.substring(i + 1);
+
+    // Output the results
+    console.log("Latitude:", lat);
+    console.log("Longitude:", longi);
+
+    set(ref(database, 'geolocation/' + date), {
+      latitude: lat,
+      longitude: longi,
+      // timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // database.ref('heartRate/' + deviceName).set({
+    //   heartBeat: decodedValue,
+    //   temperature: decodedValue
+    // })
+    console.log('geolocation saved succefully');
+  }
+
+  function handleCharacteristicChange(event) {
+    const newValueSensorReceived = new TextDecoder().decode(event.target.value);
+    
+    if ((newValueSensorReceived >= heartRateThresholdH) || (newValueSensorReceived <= heartRateThresholdL) ) {
+    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+    }
+    if ((newValueSensorReceived >= heartRateThresholdH) || (newValueSensorReceived <= heartRateThresholdL) ) {
+      heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
+    }
+
+    console.log('Event Listener Sensor:', newValueSensorReceived);
+    
+    retrievedValue.innerHTML = newValueSensorReceived;
+    timestampContainer.innerHTML = getDateTime();
+    // Call writeUserData to store data in Firebase
+    writeHeartRateData(newValueSensorReceived);
+  }
+  
+  function handleCharacteristicTempChange(event) {
+    const newValueTempReceived = new TextDecoder().decode(event.target.value);
+    console.log("Temperature Characteristic value changed: ", newValueTempReceived);
+    
+    if (newValueTempReceived > temperatureThreshold) {
+    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+    }
+    if (newValueTempReceived < temperatureThreshold) {
+      heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
+    }
+
+    // temperature = newValueTempReceived;
+    temperatureValue.innerHTML = newValueTempReceived;
+    timestampContainer.innerHTML = getDateTime();
+    // Call writeUserData to store data in Firebase
+    writeTempData(newValueTempReceived);
+  }
+
+  function handleCharacteristicGeoChange(event) {
+    const newValueGeoReceived = new TextDecoder().decode(event.target.value);
+    console.log("Geolocation Characteristic value changed: ", newValueGeoReceived);
+    
+    geolocation = newValueGeoReceived;
+    retrievedValue.innerHTML = newValueGeoReceived;
+    timestampContainer.innerHTML = getDateTime();
+    // Call writeUserData to store data in Firebase
+    writeGeoData(newValueGeoReceived);
+  }
+
+  
   function writeOnCharacteristic(value) {
     if (bleServer && bleServer.connected) {
       bleServiceFound
@@ -368,6 +488,19 @@
       console.log(datetime)
     return datetime;
   }
+
+  function getStringDateTime() {
+    var currentdate = new Date();
+    var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
+    var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+    var year = currentdate.getFullYear();
+    var hours = ("00" + currentdate.getHours()).slice(-2);
+    var minutes = ("00" + currentdate.getMinutes()).slice(-2);
+
+    var datetime = year + month + day + hours + minutes;
+    console.log(datetime);
+    return datetime;
+}
 
   // TODO: Replace the following with your app's Firebase project configuration
   // For Firebase JS SDK v7.20.0 and later, measurementId is optional
