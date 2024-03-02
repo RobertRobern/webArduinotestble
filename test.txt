@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Elderly Care App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/png" href="favicon.ico" />
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBusoD1EEvJ98ou9fpDNeDo7zBeZYgHTjI&callback=console.debug&libraries=maps,marker&v=beta">
+    </script>
+    <!-- <script type="module" src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js"></script>    -->
+  <script type="module" src="./index.js"></script>
+</head>
+
+<body>
+  <div class="topnav">
+    <h1>Smart Elderly Care Application</h1>
+  </div>
+  <div class="content">
+    <div class="card-grid">
+      <div class="card">
+        <p>
+          <button id="connectBleButton" class="connectButton">
+            Connect to BLE Device
+          </button>
+          <button id="disconnectBleButton" class="disconnectButton">
+            Disconnect BLE Device
+          </button>
+        </p>
+        <p class="gray-label">
+          BLE state:
+          <strong><span id="bleState" style="color: #d13a30">Disconnected</span></strong>
+        </p>
+      </div>
+    </div>
+    <div class="card-grid">
+      <div class="card" id="heart">
+        <h2>Heart Rate</h2>
+        <p class="reading"><span id="valueContainer">NaN</span> (Bpm)</p>
+        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+      </div>
+
+      <div class="card">
+        <h2>Control GPIO 2</h2>
+        <button id="onButton" class="onButton">ON</button>
+        <button id="offButton" class="offButton">OFF</button>
+        <p class="gray-label">
+          Last value sent: <span id="valueSent"></span>
+        </p>
+      </div>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <h2>Pressure</h2>
+        <p class="reading">
+          <span id="heartRateValueContainer">NaN</span> (Pa)
+        </p>
+        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+      </div>
+
+      <div class="card">
+        <h2>Temparature</h2>
+        <p class="reading">
+          <span id="temperatureValueContainer">NaN</span> (°C)
+        </p>
+        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+      </div>
+    </div>
+    <div class="card-grid card-grid-height">
+      <div class="card">
+        <h2>Google Map</h2>
+        <!-- <p class="reading"><span id="heartRateValueContainer">NaN</span> (Pa)</p>
+                <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
+        <!-- <div id="map"></div> -->
+        <gmp-map center="0.07011213898658752,34.28704833984375" zoom="14" map-id="DEMO_MAP_ID">
+          <gmp-advanced-marker id="myMarker" title="I am here"></gmp-advanced-marker>
+        </gmp-map>
+      </div>
+
+      <!-- <div class="card">
+        <h2>Temparature</h2>
+        <p class="reading">
+          <span id="temperatureValueContainer">NaN</span> (°C)
+        </p>
+        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+      </div> -->
+    </div>
+  </div>
+  <div class="footer">
+    <p><a href="#">Created by Siaya Institute of Technology</a></p>
+    <p><a href="./CareGiver/index.html" target="_blank">Care Giver</a></p>
+  </div>
+
+</body>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+  // DOM Elements
+  const connectButton = document.getElementById("connectBleButton");
+  const disconnectButton = document.getElementById("disconnectBleButton");
+  const onButton = document.getElementById("onButton");
+  const offButton = document.getElementById("offButton");
+  const retrievedValue = document.getElementById("valueContainer");
+  const temperatureValueContainer = document.getElementById("temperatureValueContainer");
+  const latestValueSent = document.getElementById("valueSent");
+  const bleStateContainer = document.getElementById("bleState");
+  const timestampContainer = document.getElementById("timestamp");
+  const heartRateCard = document.getElementById("heart");
+  var marker = document.getElementById('myMarker');
+  
+
+  //Define BLE Device Specs
+  var deviceName = "ESP32";
+  var bleService = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+  var ledCharacteristic = "19b10002-e8f2-537e-4f6c-d104768a1214";
+  var sensorCharacteristic = "beefcafe-36e1-4688-b7f5-00000000000b";
+  var tempertureCharacteristic = "be36bac9-0f01-4493-ad99-beb73bfe5d83";
+
+  //Global Variables to Handle Bluetooth
+  var bleServer;
+  var bleServiceFound;
+  var sensorCharacteristicFound;
+  var tempertureCharacteristicFound;
+  var heartRateThreshold = 70;
+  var heartRateDecoded;
+  var latitude ;
+  var longitude ;
+
+  // Initialize Realtime Database and get a reference to the service
+  // const database = firebase.database(app);
+  // const heartBeat = document.getElementById("valueContainer").value;
+  const firebaseConfig = {
+    apiKey: "AIzaSyDkgzfbSwxVNdG7SjTEhHiE7bDNneHbyns",
+    authDomain: "instragramclone-d7409.firebaseapp.com",
+    databaseURL: "https://instragramclone-d7409-default-rtdb.firebaseio.com",
+    projectId: "instragramclone-d7409",
+    storageBucket: "instragramclone-d7409.appspot.com",
+    messagingSenderId: "104506191011",
+    appId: "1:104506191011:web:fc08b4b8efa2b57e0da316",
+    measurementId: "G-9VMJB8RKF8"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  console.log(app.name);
+  // const analytics = getAnalytics(app);
+  // // // Initialize Realtime Database and get a reference to the service
+  const database = getDatabase(app);
+
+  // Connect Button (search for BLE Devices only if BLE is available)
+  connectButton.addEventListener("click", (event) => {
+    if (isWebBluetoothEnabled()) {
+      connectToDevice();
+    }
+  });
+
+  // Disconnect Button
+  disconnectButton.addEventListener("click", disconnectDevice);
+
+  // Write to the ESP32 LED Characteristic
+  onButton.addEventListener("click", () => {
+    writeOnCharacteristic(1)
+  });
+  offButton.addEventListener("click", () => writeOnCharacteristic(0));
+
+  // Check if BLE is available in your Browser
+  function isWebBluetoothEnabled() {
+    if (!navigator.bluetooth) {
+      console.log("Web Bluetooth API is not available in this browser!");
+      bleStateContainer.innerHTML =
+        "Web Bluetooth API is not available in this browser!";
+      return false;
+    }
+    console.log("Web Bluetooth API supported in this browser.");
+    return true;
+  }
+
+  function writeUserData(decodedValue, tempertureValue) {
+    const date = getDateTime();
+    console.log("New "+ decodedValue);
+    set(ref(database, 'heartRate/' + date), {
+      heartBeat: decodedValue,
+      temperature: tempertureValue
+    });
+    // database.ref('heartRate/' + deviceName).set({
+    //   heartBeat: decodedValue,
+    //   temperature: decodedValue
+    // })
+    console.log('saved succefully');
+  }
+
+  if (isWebLocationEnabled) {
+    navigator.geolocation.getCurrentPosition((position) => {
+      latitude = position.coords.latitude;
+      longitude = position.coords.longitude;
+      marker.setAttribute('position', latitude + ',' + longitude);
+    console.log(position.coords.latitude, position.coords.longitude);
+});
+  }
+
+  // Check if BLE is available in your Browser
+  function isWebLocationEnabled() {
+    if (!navigator.geolocation) {
+      console.log("Web Geolocation API is not available in this browser!");
+      bleStateContainer.innerHTML =
+        "Web Geolocation API is not available in this browser!";
+      return false;
+    }
+    console.log("Web Geolocation API supported in this browser.");
+    return true;
+  }
+  // navigator.geolocation.getCurrentPosition()
+
+  
+  // Connect to BLE Device and Enable Notifications
+  function connectToDevice() {
+    console.log("Initializing Bluetooth...");
+    navigator.bluetooth
+      .requestDevice({
+        filters: [{ name: deviceName }],
+        optionalServices: [bleService],
+      })
+      .then((device) => {
+        console.log("Device Selected:", device.name);
+        bleStateContainer.innerHTML = "Connected to device " + device.name;
+        bleStateContainer.style.color = "#24af37";
+        device.addEventListener("gattservicedisconnected", onDisconnected);
+        return device.gatt.connect();
+      })
+      .then((gattServer) => {
+        bleServer = gattServer;
+        console.log("Connected to GATT Server");
+        return bleServer.getPrimaryService(bleService);
+      })
+      .then((service) => {
+        bleServiceFound = service;
+        console.log("Service discovered:", service.uuid);
+        return service.getCharacteristic(sensorCharacteristic);
+      })
+      .then((characteristic) => {
+        console.log("Characteristic discovered:", characteristic.uuid);
+        sensorCharacteristicFound = characteristic;
+        characteristic.addEventListener(
+          "characteristicvaluechanged",
+          handleCharacteristicChange
+        );
+        characteristic.startNotifications();
+        console.log("Notifications Started.");
+        return characteristic.readValue();
+      })
+      .then((value) => {
+        console.log("Read value: ", value);
+        const decodedValue = new TextDecoder().decode(value);
+        
+        console.log("Decoded value: ", decodedValue);
+        retrievedValue.innerHTML = decodedValue;
+      })
+      .catch((error) => {
+        console.log("Error: ", error);
+      });
+  }
+
+  function onDisconnected(event) {
+    console.log("Device Disconnected:", event.target.device.name);
+    bleStateContainer.innerHTML = "Device disconnected";
+    bleStateContainer.style.color = "#d13a30";
+
+    connectToDevice();
+  }
+
+  function handleCharacteristicChange(event) {
+    const newValueReceived = new TextDecoder().decode(event.target.value);
+    console.log("Characteristic value changed: ", newValueReceived);
+    // heartRateDecoded = newValueReceived;
+    writeUserData(newValueReceived);
+    if (newValueReceived > heartRateThreshold) {
+    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+    }
+    if (newValueReceived < heartRateThreshold) {
+      heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
+    }
+    console.log("Date: ", getDateTime);
+    retrievedValue.innerHTML = newValueReceived;
+    timestampContainer.innerHTML = getDiffDateTime();
+  }
+
+  function writeOnCharacteristic(value) {
+    if (bleServer && bleServer.connected) {
+      bleServiceFound
+        .getCharacteristic(ledCharacteristic)
+        .then((characteristic) => {
+          console.log("Found the LED characteristic: ", characteristic.uuid);
+          const data = new Uint8Array([value]);
+          return characteristic.writeValue(data);
+        })
+        .then(() => {
+          latestValueSent.innerHTML = value;
+          console.log("Value written to LEDcharacteristic:", value);
+        })
+        .catch((error) => {
+          console.error("Error writing to the LED characteristic: ", error);
+        });
+    } else {
+      console.error(
+        "Bluetooth is not connected. Cannot write to characteristic."
+      );
+      window.alert(
+        "Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!"
+      );
+    }
+  }
+
+  function disconnectDevice() {
+    console.log("Disconnect Device.");
+    if (bleServer && bleServer.connected) {
+      if (sensorCharacteristicFound) {
+        sensorCharacteristicFound
+          .stopNotifications()
+          .then(() => {
+            console.log("Notifications Stopped");
+            return bleServer.disconnect();
+          })
+          .then(() => {
+            console.log("Device Disconnected");
+            bleStateContainer.innerHTML = "Device Disconnected";
+            bleStateContainer.style.color = "#d13a30";
+          })
+          .catch((error) => {
+            console.log("An error occurred:", error);
+          });
+      } else {
+        console.log("No characteristic found to disconnect.");
+      }
+    } else {
+      // Throw an error if Bluetooth is not connected
+      console.error("Bluetooth is not connected.");
+      window.alert("Bluetooth is not connected.");
+    }
+  }
+
+  function getDateTime() {
+    var currentdate = new Date();
+    var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
+    var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+    var year = currentdate.getFullYear();
+    var hours = ("00" + currentdate.getHours()).slice(-2);
+    var minutes = ("00" + currentdate.getMinutes()).slice(-2);
+    var seconds = ("00" + currentdate.getSeconds()).slice(-2);
+
+    var datetime =
+      day +
+      "/" +
+      month +
+      "/" +
+      year +
+      " at " +
+      hours +
+      ":" +
+      minutes +
+      ":" +
+      seconds;
+      console.log(datetime)
+    return datetime;
+    
+  }
+
+  // function getDateTime() {
+  //   var currentdate = new Date();
+  //   var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
+  //   var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+  //   var year = currentdate.getFullYear();
+  //   var hours = ("00" + currentdate.getHours()).slice(-2);
+  //   var minutes = ("00" + currentdate.getMinutes()).slice(-2);
+  //   var seconds = ("00" + currentdate.getSeconds()).slice(-2);
+
+  //   var datetime =
+  //   year +
+  //     "/" +
+  //     month +
+  //     day +
+  //     " at " +
+  //     hours +
+  //     ":" +
+  //     minutes +
+  //     ":" +
+  //     seconds;
+  //     console.log(datetime)
+  //     return datetime;
+    
+  // }
+
+  // TODO: Replace the following with your app's Firebase project configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+ 
+
+
+  // firebase.initializeApp(firebaseConfig);
+
+  // const db = getFirestore(app);
+
+ 
+ 
+  // Get a list of cities from your database
+  // async function getCities(db) {
+  //   const citiesCol = collection(db, 'cities');
+  //   const citySnapshot = await getDocs(citiesCol);
+  //   const cityList = citySnapshot.docs.map(doc => doc.data());
+  //   return cityList;
+  // }
+</script>
+
+</html>
