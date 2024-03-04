@@ -1,26 +1,26 @@
 <!DOCTYPE html>
 <html>
-
-<head>
-  <title>Care Giver App</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" type="image/png" href="favicon.ico" />
-  <link rel="stylesheet" type="text/css" href="style.css" />
-  <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
-  <script async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBusoD1EEvJ98ou9fpDNeDo7zBeZYgHTjI&callback=console.debug&libraries=maps,marker&v=beta">
-    </script>
+  <head>
+    <title>Care Giver App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="favicon.ico" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+    <script
+      async
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBusoD1EEvJ98ou9fpDNeDo7zBeZYgHTjI&callback=console.debug&libraries=maps,marker&v=beta"
+    ></script>
     <!-- <script type="module" src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"></script>
     <script type="module" src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js"></script>    -->
-  <script type="module" src="./index.js"></script>
-</head>
+    <script type="module" src="./index.js"></script>
+  </head>
 
-<body>
-  <div class="topnav">
-    <h1>Smart Elderly Care Application (Care Giver Analytics)</h1>
-  </div>
-  <div class="content">
-    <!-- <div class="card-grid">
+  <body>
+    <div class="topnav">
+      <h1>Smart Elderly Care Application (Care Giver Analytics)</h1>
+    </div>
+    <div class="content">
+      <!-- <div class="card-grid">
       <div class="card">
         <p>
           <button id="connectBleButton" class="connectButton">
@@ -37,34 +37,42 @@
       </div>
     </div> -->
 
-    <div class="card-grid card-grid-height">
-      <div class="card">
-        <h2>Google Map</h2>
-        <!-- <p class="reading"><span id="heartRateValueContainer">NaN</span> (Pa)</p>
+      <div class="card-grid card-grid-height">
+        <div class="card">
+          <h2>Google Map</h2>
+          <!-- <p class="reading"><span id="heartRateValueContainer">NaN</span> (Pa)</p>
                 <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
-        <!-- <div id="map"></div> -->
-        <gmp-map id="map" center="0.07011213898658752,34.28704833984375" zoom="14" map-id="DEMO_MAP_ID">
-          <gmp-advanced-marker id="myMarker" title="My Elderl location"></gmp-advanced-marker>
-        </gmp-map>
-      </div>    
-    </div>
-
-    <div class="card-grid">
-      <div class="card" id="heart">
-        <h2>Heart Rate</h2>
-        <p class="reading"><span id="valueContainer">NaN</span> (Bpm)</p>
-        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+          <!-- <div id="map"></div> -->
+          <gmp-map
+            id="map"
+            center="0.07011213898658752,34.28704833984375"
+            zoom="14"
+            map-id="DEMO_MAP_ID"
+          >
+            <gmp-advanced-marker
+              id="myMarker"
+              title="My Elderl location"
+            ></gmp-advanced-marker>
+          </gmp-map>
+        </div>
       </div>
 
-      <div class="card" id="temperature">
-        <h2>Temparature</h2>
-        <p class="reading">
-          <span id="temperatureValueContainer">NaN</span> (°C)
-        </p>
-        <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+      <div class="card-grid">
+        <div class="card" id="heart">
+          <h2>Heart Rate</h2>
+          <p class="reading"><span id="valueContainer">NaN</span> (Bpm)</p>
+          <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+        </div>
+
+        <div class="card" id="temperature">
+          <h2>Temparature</h2>
+          <p class="reading">
+            <span id="temperatureValueContainer">NaN</span> (°C)
+          </p>
+          <p class="gray-label">Last reading: <span id="timestamp"></span></p>
+        </div>
       </div>
-    </div>
-    <!-- <div class="card-grid">
+      <!-- <div class="card-grid">
       <div class="card">
         <h2>Pressure</h2>
         <p class="reading">
@@ -81,261 +89,188 @@
         <p class="gray-label">Last reading: <span id="timestamp"></span></p>
       </div>
     </div> -->
-    
-  </div>
-  <div class="footer">
-    <p><a href="#">Created by Siaya Institute of Technology</a></p>
-  </div>
+    </div>
+    <div class="footer">
+      <p><a href="#">Created by Siaya Institute of Technology</a></p>
+    </div>
+  </body>
 
-</body>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import {
+      getDatabase,
+      ref,
+      set,
+      get,
+      child,
+      onValue,
+      query,
+      limitToLast,
+    } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getDatabase, ref, set, get, child, onValue  } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+    // DOM Elements
+    const connectButton = document.getElementById("connectBleButton");
+    const disconnectButton = document.getElementById("disconnectBleButton");
+    const onButton = document.getElementById("onButton");
+    const offButton = document.getElementById("offButton");
+    const retrievedValue = document.getElementById("valueContainer");
+    const latestValueSent = document.getElementById("valueSent");
+    const bleStateContainer = document.getElementById("bleState");
+    const timestampContainer = document.getElementById("timestamp");
+    const heartRateCard = document.getElementById("heart");
+    const marker = document.getElementById("myMarker");
+    const temperatureValue = document.getElementById(
+      "temperatureValueContainer"
+    );
 
-  // DOM Elements
-  const connectButton = document.getElementById("connectBleButton");
-  const disconnectButton = document.getElementById("disconnectBleButton");
-  const onButton = document.getElementById("onButton");
-  const offButton = document.getElementById("offButton");
-  const retrievedValue = document.getElementById("valueContainer");
-  const latestValueSent = document.getElementById("valueSent");
-  const bleStateContainer = document.getElementById("bleState");
-  const timestampContainer = document.getElementById("timestamp");
-  const heartRateCard = document.getElementById("heart");
-  const marker = document.getElementById('myMarker');
-  const temperatureValue = document.getElementById("temperatureValueContainer");
-  
-  
-  //Global Variables to Handle Bluetooth
-  var bleServer;
-  var bleServiceFound;
-  var sensorCharacteristicFound;
-  var heartRateThreshold = 70;
-  var heartRateDecoded;
-  var latitude ;
-  var longitude ;
+    //Global Variables to Handle Bluetooth
+    var bleServer;
+    var bleServiceFound;
+    var sensorCharacteristicFound;
+    var heartRateThreshold = 70;
+    var heartRateDecoded;
+    var latitude;
+    var longitude;
 
-  // Initialize Realtime Database and get a reference to the service
-  // const database = firebase.database(app);
-  // const heartBeat = document.getElementById("valueContainer").value;
-  const firebaseConfig = {
-    apiKey: "AIzaSyDkgzfbSwxVNdG7SjTEhHiE7bDNneHbyns",
-    authDomain: "instragramclone-d7409.firebaseapp.com",
-    databaseURL: "https://instragramclone-d7409-default-rtdb.firebaseio.com",
-    projectId: "instragramclone-d7409",
-    storageBucket: "instragramclone-d7409.appspot.com",
-    messagingSenderId: "104506191011",
-    appId: "1:104506191011:web:fc08b4b8efa2b57e0da316",
-    measurementId: "G-9VMJB8RKF8"
-  };
+    // Initialize Realtime Database and get a reference to the service
+    // const database = firebase.database(app);
+    // const heartBeat = document.getElementById("valueContainer").value;
+    const firebaseConfig = {
+      apiKey: "AIzaSyDkgzfbSwxVNdG7SjTEhHiE7bDNneHbyns",
+      authDomain: "instragramclone-d7409.firebaseapp.com",
+      databaseURL: "https://instragramclone-d7409-default-rtdb.firebaseio.com",
+      projectId: "instragramclone-d7409",
+      storageBucket: "instragramclone-d7409.appspot.com",
+      messagingSenderId: "104506191011",
+      appId: "1:104506191011:web:fc08b4b8efa2b57e0da316",
+      measurementId: "G-9VMJB8RKF8",
+    };
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  console.log(app.name);
-  // const analytics = getAnalytics(app);
-  // // // Initialize Realtime Database and get a reference to the service
-  const database = getDatabase(app);
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    console.log(app.name);
+    // const analytics = getAnalytics(app);
+    // // // Initialize Realtime Database and get a reference to the service
+    const database = getDatabase(app);
 
-  // Write to the ESP32 LED Characteristic
-  onButton.addEventListener("click", () => {
-    writeOnCharacteristic(1)
-    // writeUserData(heartRateDecoded);
-  });
-  offButton.addEventListener("click", () => writeOnCharacteristic(0));
+    readUserData();
 
-  // Check if BLE is available in your Browser
-  function isWebBluetoothEnabled() {
-    if (!navigator.bluetooth) {
-      console.log("Web Bluetooth API is not available in this browser!");
-      bleStateContainer.innerHTML =
-        "Web Bluetooth API is not available in this browser!";
-      return false;
+    function readUserData() {
+     
+      const heartRateReadings = query(ref(database, "/heartRate"), limitToLast(1));
+      onValue(heartRateReadings, (snapshot) => {
+        const data = snapshot.val();
+
+        // Check if there is any data
+        if (data) {
+          // Get the dynamic key (timestamp)
+          const timestamp = Object.keys(data)[0];
+
+          // Access the 'heartBeat' value
+          const heartBeatValue = data[timestamp].heartBeat;
+
+          // Now, 'heartBeatValue' contains the value of 'heartBeat'
+          console.log("Heart Beat Value:", heartBeatValue);
+          retrievedValue.innerHTML = heartBeatValue;
+
+          // Update your variable or perform other operations with 'heartBeatValue'
+        } else {
+          console.log("No data available.");
+        }
+        console.log(data);
+        // updateStarCount(postElement, data);
+      });
+
+      const temperatureReadings = query(ref(database, "/temperature"), limitToLast(1));
+      onValue(temperatureReadings, (snapshot) => {
+        const data = snapshot.val();
+
+        // Check if there is any data
+        if (data) {
+          // Get the dynamic key (timestamp)
+          const timestamp = Object.keys(data)[0];
+
+          // Access the 'heartBeat' value
+          const temperatureValueReadings = data[timestamp].temperature;
+          temperatureValue.innerHTML = temperatureValueReadings
+
+          // Now, 'heartBeatValue' contains the value of 'heartBeat'
+          console.log("Temperature Value:", temperatureValueReadings);
+
+          // Update your variable or perform other operations with 'heartBeatValue'
+        } else {
+          console.log("No data available.");
+        }
+        console.log(data);
+        // updateStarCount(postElement, data);
+      });
+
+      console.log("Read successfully");
     }
-    console.log("Web Bluetooth API supported in this browser.");
-    return true;
-  }
 
-  readUserData();
+    function handleCharacteristicChange(event) {
+      const newValueSensorReceived = new TextDecoder().decode(
+        event.target.value
+      );
 
-  // function readUserData() {
-  //   const heartRateReadings = ref(database, '/heartRate').limitToLast(1)
-  //   .once('value')
-  //   .then((snapshot)=>{
-  //     const lastData = snapshot.val();      
-  //     response.status(200).send(`Last Data: ${JSON.stringify(lastData)}`);
-  //     retrievedValue.innerHTML = lastData;
-      
-  //   }).catch((error)=>{
-  //     console.error('Error:', error);
-  //     response.status(500).send('Error retrieving last data.');
-  //   });
-  //   // onValue(heartRateReadings, (snapshot)=>{
-  //   //   const data = snapshot.val();
-  //   //   console.log(data);
-  //   //   retrievedValue.innerHTML = decodedValue;
-  //   // })
-  //   console.log('Reaad succefully');
-  // }
+      if (
+        newValueSensorReceived >= heartRateThresholdH ||
+        newValueSensorReceived <= heartRateThresholdL
+      ) {
+        heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+      }
+      if (
+        newValueSensorReceived >= heartRateThresholdH ||
+        newValueSensorReceived <= heartRateThresholdL
+      ) {
+        heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
+      }
 
-  function readUserData() {
-    const heartRateReadings = ref(database, '/heartRate').limitToLast(1)
-        .once('value')
-        .then((snapshot) => {
-            const lastData = snapshot.val();
+      console.log("Event Listener Sensor:", newValueSensorReceived);
 
-            if (lastData) {
-                const lastHeartRateEntry = Object.values(lastData)[0]; // Get the last entry
-                const lastHeartRateValue = lastHeartRateEntry.heartBeat;
-
-                // Assuming 'retrievedHeartRate' is a variable declared in the appropriate scope
-                retrievedValue = lastHeartRateValue;
-
-                response.status(200).send(`Last Heart Rate: ${retrievedValue}`);
-            } else {
-                response.status(200).send('No heart rate data available.');
-            }
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-            response.status(500).send('Error retrieving last data.');
-        });
-
-    const temperatureReadings = ref(database, '/temperature').limitToLast(1)
-        .once('value')
-        .then((snapshot) => {
-            const lastData = snapshot.val();
-
-            if (lastData) {
-                const lastTemperatureEntry = Object.values(lastData)[0]; // Get the last entry
-                const lastTemperatureValue = lastTemperatureEntry.temperature;
-
-                // Assuming 'retrievedTemperature' is a variable declared in the appropriate scope
-                temperatureValue = lastTemperatureValue;
-
-                response.status(200).send(`Last Temperature: ${temperatureValue}`);
-            } else {
-                response.status(200).send('No temperature data available.');
-            }
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-            response.status(500).send('Error retrieving last data.');
-        });
-
-    console.log('Read successfully');
-}
-
-
-// Function to read and display the last data from the JSON
-// exports.displayLastData = functions.https.onRequest((request, response) => {
-//   const databaseRef = admin.database().ref('/heartRate');
-
-//   databaseRef
-//     .limitToLast(1)
-//     .once('value')
-//     .then((snapshot) => {
-//       const lastData = snapshot.val();
-//       response.status(200).send(`Last Data: ${JSON.stringify(lastData)}`);
-//     })
-//     .catch((error) => {
-//       console.error('Error:', error);
-//       response.status(500).send('Error retrieving last data.');
-//     });
-// });
-
-// Function to display all data in iteration from the JSON
-// exports.displayAllData = functions.https.onRequest((request, response) => {
-//   const databaseRef = admin.database().ref('/heartRate');
-
-//   databaseRef
-//     .once('value')
-//     .then((snapshot) => {
-//       const allData = snapshot.val();
-//       let result = 'All Data:\n';
-
-//       for (const month in allData) {
-//         for (const day in allData[month]) {
-//           for (const timestamp in allData[month][day]) {
-//             result += `${timestamp}: ${JSON.stringify(allData[month][day][timestamp])}\n`;
-//           }
-//         }
-//       }
-
-//       response.status(200).send(result);
-//     })
-//     .catch((error) => {
-//       console.error('Error:', error);
-//       response.status(500).send('Error retrieving all data.');
-//     });
-// });
-
-
-    // Set the position attribute with the dynamic coordinates
-    
-
-  if (isWebLocationEnabled) {
-    navigator.geolocation.getCurrentPosition((position) => {
-      latitude = position.coords.latitude;
-      longitude = position.coords.longitude;
-      marker.setAttribute('position', latitude + ',' + longitude);
-    console.log(position.coords.latitude, position.coords.longitude);
-});
-  }
-  // Check if geolocation is available in your Browser
-  function isWebLocationEnabled() {
-    if (!navigator.geolocation) {
-      console.log("Web Geolocation API is not available in this browser!");
-      bleStateContainer.innerHTML =
-        "Web Geolocation API is not available in this browser!";
-      return false;
+      retrievedValue.innerHTML = newValueSensorReceived;
+      timestampContainer.innerHTML = getDateTime();
+      // Call writeUserData to store data in Firebase
+      writeHeartRateData(newValueSensorReceived);
     }
-    console.log("Web Geolocation API supported in this browser.");
-    return true;
-  }
 
-  function getDateTime() {
-    var currentdate = new Date();
-    var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
-    var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
-    var year = currentdate.getFullYear();
-    var hours = ("00" + currentdate.getHours()).slice(-2);
-    var minutes = ("00" + currentdate.getMinutes()).slice(-2);
-    var seconds = ("00" + currentdate.getSeconds()).slice(-2);
+    function getDateTime() {
+      var currentdate = new Date();
+      var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
+      var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+      var year = currentdate.getFullYear();
+      var hours = ("00" + currentdate.getHours()).slice(-2);
+      var minutes = ("00" + currentdate.getMinutes()).slice(-2);
+      var seconds = ("00" + currentdate.getSeconds()).slice(-2);
 
-    var datetime =
-      day +
-      "/" +
-      month +
-      "/" +
-      year +
-      " at " +
-      hours +
-      ":" +
-      minutes +
-      ":" +
-      seconds;
-    return datetime;
-  }
+      var datetime =
+        day +
+        "/" +
+        month +
+        "/" +
+        year +
+        " at " +
+        hours +
+        ":" +
+        minutes +
+        ":" +
+        seconds;
+      return datetime;
+    }
 
-  // TODO: Replace the following with your app's Firebase project configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
- 
+    // TODO: Replace the following with your app's Firebase project configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 
+    // firebase.initializeApp(firebaseConfig);
 
-  // firebase.initializeApp(firebaseConfig);
+    // const db = getFirestore(app);
 
-  // const db = getFirestore(app);
-
- 
- 
-  // Get a list of cities from your database
-  // async function getCities(db) {
-  //   const citiesCol = collection(db, 'cities');
-  //   const citySnapshot = await getDocs(citiesCol);
-  //   const cityList = citySnapshot.docs.map(doc => doc.data());
-  //   return cityList;
-  // }
-</script>
-
+    // Get a list of cities from your database
+    // async function getCities(db) {
+    //   const citiesCol = collection(db, 'cities');
+    //   const citySnapshot = await getDocs(citiesCol);
+    //   const cityList = citySnapshot.docs.map(doc => doc.data());
+    //   return cityList;
+    // }
+  </script>
 </html>

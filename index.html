@@ -385,10 +385,10 @@
     console.log("Temperature Characteristic value changed: ", newValueTempReceived);
     
     if (newValueTempReceived > temperatureThreshold) {
-    heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+    temperatureCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
     }
     if (newValueTempReceived < temperatureThreshold) {
-      heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
+      temperatureCard.style.backgroundColor = "#fff"; // Red color for high heart rate
     }
 
     // temperature = newValueTempReceived;
