@@ -206,31 +206,31 @@
       console.log("Read successfully");
     }
 
-    function handleCharacteristicChange(event) {
-      const newValueSensorReceived = new TextDecoder().decode(
-        event.target.value
-      );
+    // function handleCharacteristicChange(event) {
+    //   const newValueSensorReceived = new TextDecoder().decode(
+    //     event.target.value
+    //   );
 
-      if (
-        newValueSensorReceived >= heartRateThresholdH ||
-        newValueSensorReceived <= heartRateThresholdL
-      ) {
-        heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
-      }
-      if (
-        newValueSensorReceived >= heartRateThresholdH ||
-        newValueSensorReceived <= heartRateThresholdL
-      ) {
-        heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
-      }
+    //   if (
+    //     newValueSensorReceived >= heartRateThresholdH ||
+    //     newValueSensorReceived <= heartRateThresholdL
+    //   ) {
+    //     heartRateCard.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+    //   }
+    //   if (
+    //     newValueSensorReceived >= heartRateThresholdH ||
+    //     newValueSensorReceived <= heartRateThresholdL
+    //   ) {
+    //     heartRateCard.style.backgroundColor = "#fff"; // Red color for high heart rate
+    //   }
 
-      console.log("Event Listener Sensor:", newValueSensorReceived);
+    //   console.log("Event Listener Sensor:", newValueSensorReceived);
 
-      retrievedValue.innerHTML = newValueSensorReceived;
-      timestampContainer.innerHTML = getDateTime();
-      // Call writeUserData to store data in Firebase
-      writeHeartRateData(newValueSensorReceived);
-    }
+    //   retrievedValue.innerHTML = newValueSensorReceived;
+    //   timestampContainer.innerHTML = getDateTime();
+    //   // Call writeUserData to store data in Firebase
+    //   writeHeartRateData(newValueSensorReceived);
+    // }
 
     function getDateTime() {
       var currentdate = new Date();
