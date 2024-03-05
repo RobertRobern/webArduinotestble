@@ -167,6 +167,13 @@
           // Access the 'heartBeat' value
           const heartBeatValue = data[timestamp].heartBeat;
 
+          if ((heartBeatValue >= heartRateThresholdH) || (heartBeatValue <= heartRateThresholdL) ) {
+          retrievedValue.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+          }
+          if ((heartBeatValue >= heartRateThresholdH) || (heartBeatValue <= heartRateThresholdL) ) {
+            retrievedValue.style.backgroundColor = "#fff"; // Red color for high heart rate
+          }
+
           // Now, 'heartBeatValue' contains the value of 'heartBeat'
           console.log("Heart Beat Value:", heartBeatValue);
           retrievedValue.innerHTML = heartBeatValue;
@@ -190,7 +197,16 @@
 
           // Access the 'heartBeat' value
           const temperatureValueReadings = data[timestamp].temperature;
+
+          if (temperatureValueReadings > temperatureThreshold) {
+          temperatureValue.style.backgroundColor = "#d13a30"; // Red color for high heart rate
+          }
+          if (temperatureValueReadings < temperatureThreshold) {
+            temperatureValue.style.backgroundColor = "#fff"; // Red color for high heart rate
+          }
+          
           temperatureValue.innerHTML = temperatureValueReadings
+
 
           // Now, 'heartBeatValue' contains the value of 'heartBeat'
           console.log("Temperature Value:", temperatureValueReadings);
